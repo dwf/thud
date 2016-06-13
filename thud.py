@@ -7,6 +7,10 @@ class UpCountingTimer(object):
         self.record = []
         self.reset()
 
+    @property
+    def running(self):
+        return self._last_started is not None
+
     def reset(self):
         self._accumulated = datetime.timedelta(0)
         self._last_started = None
@@ -19,7 +23,7 @@ class UpCountingTimer(object):
         self.record.append(('start', self._last_started))
 
     def pause(self):
-        if self._last_started is None:
+        if not self.running:
             raise ValueError('timer not running')
         pause_time = datetime.datetime.now()
         self.record.append(('pause', pause_time))
@@ -27,14 +31,14 @@ class UpCountingTimer(object):
         self._last_started = None
 
     def toggle(self):
-        if self._last_started is None:
+        if not self.running:
             self.start()
         else:
             self.pause()
 
     @property
     def current(self):
-        if self._last_started is None:
+        if not self.running:
             return self._accumulated
         else:
             current = datetime.datetime.now() - self._last_started
@@ -78,11 +82,15 @@ class UserInterface(urwid.MainLoop):
         self.edit_container = DisableToggle(self.edit)
         self.text = urwid.Text(self.time_display)
         widget = urwid.ListBox([
-            urwid.Columns([
-                ('pack', urwid.Text(' ')),
-                self.edit_container,
-                ('pack', self.text)
-            ], dividechars=1)])
+            urwid.LineBox(
+                urwid.Padding(
+                    urwid.Columns([
+                        self.edit_container,
+                        ('pack', self.text)
+                    ], dividechars=2),
+                    left=1, right=1)
+            ),
+        ])
         super().__init__(widget, unhandled_input=self.unhandled_input)
         self.alarm = self.set_alarm_in(0.1, self._update_callback)
 
@@ -95,7 +103,7 @@ class UserInterface(urwid.MainLoop):
             self.timer.toggle()
         elif key == 'enter':
             self.new_task()
-        elif key.lower() == 'q':
+        elif key.lower() == 'q' or key == 'esc':
             raise urwid.ExitMainLoop
 
     def new_task(self):
@@ -108,9 +116,12 @@ class UserInterface(urwid.MainLoop):
             self.timer.reset()
             self._new_task_wait = False
 
-        self.timer.toggle()
-        self._new_task_wait = True
-        self.set_alarm_in(2, callback)
+        if self.timer.running:
+            self.timer.pause()
+            self._new_task_wait = True
+            self.set_alarm_in(2, callback)
+        else:
+            callback(None, None)
 
     def edit_box_enter_callback(self):
         self.timer.start()
