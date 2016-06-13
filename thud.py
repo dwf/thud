@@ -120,5 +120,6 @@ class UserInterface(urwid.MainLoop):
         self.text.set_text(self.time_display)
         self.alarm = self.set_alarm_in(0.1, self._update_callback)
 
-if __name__ == "__main__":
+
+def main():
     UserInterface().run()
